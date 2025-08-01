@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 
 class Player {
@@ -51,13 +49,11 @@ class _ExplorePageState extends State<ExplorePage> with TickerProviderStateMixin
   // for current drag
   Offset _cardOffset = Offset.zero;
   double _cardRotation = 0.0;
-  bool _isDragging = false;
 
   Player? get _topPlayer => _players.isNotEmpty ? _players.last : null;
 
   void _onPanStart(DragStartDetails d) {
     setState(() {
-      _isDragging = true;
     });
   }
 
@@ -70,7 +66,6 @@ class _ExplorePageState extends State<ExplorePage> with TickerProviderStateMixin
 
   void _onPanEnd(DragEndDetails d) {
     setState(() {
-      _isDragging = false;
     });
 
     const threshold = 100;
