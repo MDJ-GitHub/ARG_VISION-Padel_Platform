@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+
+import 'package:mobile_frontend_argvision/services/storage_service.dart';
 
 class SideBar extends StatelessWidget {
   final void Function(int index) onItemSelected;
@@ -62,12 +65,29 @@ class SideBar extends StatelessWidget {
                     ),
 
                     const SizedBox(height: 10),
-                    const Text(
-                      'Noamen Ben makhlouf',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
+                    FutureBuilder(
+                      future: _getUserName(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const CircularProgressIndicator();
+                        } else if (snapshot.hasError) {
+                          return const Text(
+                            'User Name',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          );
+                        } else {
+                          return Text(
+                            snapshot.data ?? 'User Name',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          );
+                        }
+                      },
                     ),
                     const SizedBox(height: 30), // spacing between profile and menu
 
@@ -116,10 +136,7 @@ class SideBar extends StatelessWidget {
                       icon: Icons.logout,
                       label: 'Logout',
                       color: Colors.pink,
-                      onTap: () {
-                        Navigator.pop(context);
-                        onLogout();
-                      },
+                      onTap: () => _logout(context),
                     ),
                   ],
                 ),
@@ -152,6 +169,51 @@ class SideBar extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<String> _getUserName() async {
+    try {
+      final String? userDataJson = await StorageService.read('user_data');
+      if (userDataJson != null) {
+        final Map<String, dynamic> userData = jsonDecode(userDataJson);
+        final String firstName = userData['first_name'] ?? '';
+        final String lastName = userData['last_name'] ?? '';
+        return '$firstName $lastName'.trim();
+      }
+      return 'User Name';
+    } catch (e) {
+      return 'User Name';
+    }
+  }
+
+  Future<void> _logout(BuildContext context) async {
+    try {
+      // Clear all the required storage items
+      await StorageService.delete('access_token');
+      await StorageService.delete('refresh_token');
+      await StorageService.delete('rememberMe');
+      await StorageService.delete('user_data');
+
+            ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('See you soon!'),
+          duration: const Duration(seconds: 5),
+          backgroundColor: Colors.blue,
+        ),
+      );
+      
+      // Navigate to index 10
+      if (context.mounted) {
+        Navigator.pop(context); // Close the sidebar
+        onItemSelected(10); // Navigate to index 10 (login/splash screen)
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error during logout')),
+        );
+      }
+    }
   }
 
   Widget _buildIconMenu({

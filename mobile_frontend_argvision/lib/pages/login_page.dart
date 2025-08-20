@@ -1,4 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
+import 'package:mobile_frontend_argvision/services/accounts_services.dart';
+import 'package:mobile_frontend_argvision/services/storage_service.dart';
 
 class LoginPage extends StatefulWidget {
   final Function(int) onLoginSuccess;
@@ -36,25 +41,25 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   // Sign‑up wizard state
   bool _showSignUp = false;
   int _signUpStep = 0;
+  bool _phoneNumberTouched = false;
+  bool _rememberMe = false;
+  bool _iRememberYou = false;
 
-  // Step‑level data
-String? _firstName;
-String? _lastName;
+  // Form fields
+  String _email = '';
+  String _password = '';
+  String _lemail = '';
+  String _lpassword = '';
+  String _firstName = '';
+  String _lastName = '';
+  String _location = '';
+  String _username = '';
+  String _phoneNumber = '';
+  String _confirmPassword = '';
+  String _code = '';
   String? _selectedGender;
   String? _selectedRole;
   DateTime? _selectedDate;
-
-  // Controllers
-
-final TextEditingController _firstNameController = TextEditingController();
-final TextEditingController _lastNameController = TextEditingController();
-  final TextEditingController _locationController = TextEditingController();
-  final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController =
-      TextEditingController();
-  final TextEditingController _codeController = TextEditingController();
 
   // ────────────────────────────────────────────────────────────
   // Validation helpers
@@ -66,12 +71,21 @@ final TextEditingController _lastNameController = TextEditingController();
     return age > 13;
   }
 
-  bool _isLocationValid() => _locationController.text.trim().length >= 2;
+  bool _isLocationValid() => _location.trim().length >= 2;
+
+  bool _isEmailValid() =>
+      RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(_email.trim());
+
+  bool _isPasswordValid() => _password.length >= 8;
+
+  bool _passwordsMatch() => _password == _confirmPassword;
 
   // ────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
+
+  _loadRememberMe();
 
     _controller = AnimationController(
       vsync: this,
@@ -96,7 +110,7 @@ final TextEditingController _lastNameController = TextEditingController();
     ).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.2, 0.4, curve: Curves.easeOut),
+        curve: const Interval(0.2, 0.4, curve: Curves.bounceOut),
       ),
     );
     _restSlideOffset = Tween<Offset>(
@@ -176,20 +190,100 @@ final TextEditingController _lastNameController = TextEditingController();
     _controller.dispose();
     _signUpController.dispose();
     _signUpPageController.dispose();
-    _locationController.dispose();
-    _firstNameController.dispose(); 
-    _lastNameController.dispose();
-    _usernameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    _codeController.dispose();
     super.dispose();
   }
 
   // ────────────────────────────────────────────────────────────
   // Navigation helpers
-  void _login() => widget.onLoginSuccess(0);
+  
+Future<void> _loadRememberMe() async {
+  final String? rememberMe = await StorageService.read('rememberMe');
+  setState(() {
+    _iRememberYou = rememberMe == 'true';
+  });
+}
+
+
+  Future<void> _login() async {
+    if (_lemail.isEmpty || _lpassword.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please insert both username/phone/email and password to login.',
+          ),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final Map<String, dynamic> userData = {
+      "email": _lemail,
+      "password": _lpassword,
+    };
+
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final response = await OrganizationsServices.login(userData);
+
+    // Close loading
+    Navigator.of(context).pop();
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final decoded = jsonDecode(response.body);
+
+      await StorageService.write('rememberMe', _rememberMe.toString());
+      // Extract tokens & user info
+      final String accessToken = decoded['access'];
+      final String refreshToken = decoded['refresh'];
+      final Map<String, dynamic> user = decoded['user'];
+
+      // Save securely using StorageService
+      await StorageService.write('access_token', accessToken);
+      await StorageService.write('refresh_token', refreshToken);
+      await StorageService.write('user_data', jsonEncode(user));
+
+      final String? userDataJson = await StorageService.read('user_data');
+      final Map<String, dynamic> userData = jsonDecode(userDataJson!);
+      final String firstName = userData['first_name'] ?? '';
+      final String lastName = userData['last_name'] ?? '';
+      
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Welcome to OnlySport $firstName $lastName!'),
+          duration: const Duration(seconds: 5),
+          backgroundColor: Colors.blue,
+        ),
+      );
+
+      widget.onLoginSuccess(0);
+    } else {
+      String bodyMessage;
+      try {
+        final decoded = jsonDecode(response.body);
+        bodyMessage = decoded.values
+            .map((value) => value.toString())
+            .join('\n')
+            .replaceAll(RegExp(r'[\[\]]'), '');
+      } catch (_) {
+        bodyMessage = response.body;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(bodyMessage),
+          duration: Duration(seconds: 5),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   void _showSignUpForm() {
     setState(() => _showSignUp = true);
@@ -201,15 +295,17 @@ final TextEditingController _lastNameController = TextEditingController();
       setState(() {
         _showSignUp = false;
         _signUpStep = 0;
+        _email = '';
+        _password = '';
+        _firstName = '';
+        _lastName = '';
+        _location = '';
+        _username = '';
+        _confirmPassword = '';
+        _code = '';
         _selectedGender = null;
         _selectedRole = null;
         _selectedDate = null;
-        _locationController.clear();
-        _usernameController.clear();
-        _emailController.clear();
-        _passwordController.clear();
-        _confirmPasswordController.clear();
-        _codeController.clear();
       });
     });
   }
@@ -243,6 +339,25 @@ final TextEditingController _lastNameController = TextEditingController();
     );
     if (picked != null && picked != _selectedDate) {
       setState(() => _selectedDate = picked);
+    }
+  }
+
+  void _sendVerificationCode() {
+    if (_isEmailValid()) {
+      // In a real app, you would send the code to the email here
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Verification code sent to your email'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid email address'),
+          duration: Duration(seconds: 2),
+        ),
+      );
     }
   }
 
@@ -370,6 +485,7 @@ final TextEditingController _lastNameController = TextEditingController();
                                   _buildRoleStep(),
                                   _buildAgeLocationStep(),
                                   _buildCredentialsStep(),
+                                  _buildVerificationStep(),
                                 ],
                               ),
                             ),
@@ -386,9 +502,85 @@ final TextEditingController _lastNameController = TextEditingController();
     );
   }
 
+  Future<Map<String, String>> getUserData() async {
+  final String? userDataJson = await StorageService.read('user_data');
+  if (userDataJson == null) {
+    return {'firstName': '', 'lastName': ''};
+  }
+  final Map<String, dynamic> userData = jsonDecode(userDataJson);
+  final String firstName = userData['first_name'] ?? '';
+  final String lastName = userData['last_name'] ?? '';
+  return {'firstName': firstName, 'lastName': lastName};
+}
+
+
   // ────────────────────────────────────────────────────────────
   // UI BUILDERS
   Widget _buildLoginForm() {
+
+
+ if (_iRememberYou) {
+  return Container(
+    padding: const EdgeInsets.all(24),
+    margin: const EdgeInsets.symmetric(horizontal: 24),
+    decoration: _formDecoration(),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FutureBuilder<Map<String, String>>(
+          future: getUserData(),
+          builder: (BuildContext context, AsyncSnapshot<Map<String, String>> snapshot) {
+            String welcomeText = 'Welcome Back!';
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              welcomeText = 'Welcome Back!';
+            } else if (snapshot.hasError) {
+              welcomeText = 'Welcome Back! (Error)';
+            } else {
+              final firstName = snapshot.data?['firstName'] ?? '';
+              welcomeText = 'Welcome Back \n$firstName!';
+            }
+            return Center(
+              child: Text(
+                welcomeText,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 20),
+        const Text(
+          'We\'re logging you in automatically',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.black54),
+        ),
+        const SizedBox(height: 40),
+        _gradientButton('CONTINUE', _refresh),
+        const SizedBox(height: 20),
+        TextButton(
+          onPressed: () {
+            setState(() {
+              _rememberMe = false;
+              StorageService.delete('rememberMe');
+              StorageService.delete('access_token');
+              StorageService.delete('refresh_token');
+              StorageService.delete('user_data');
+            });
+          },
+          child: const Text(
+            'Sign in as different user',
+            style: TextStyle(color: Colors.blue),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
     return Container(
       padding: const EdgeInsets.all(24),
       margin: const EdgeInsets.symmetric(horizontal: 24),
@@ -396,19 +588,50 @@ final TextEditingController _lastNameController = TextEditingController();
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _styledTextField('Email', Icons.email),
+          _styledTextField(
+            'Username or Email or Phone',
+            Icons.email,
+            onChanged: (val) => setState(() => _lemail = val),
+            value: _lemail,
+          ),
           const SizedBox(height: 20),
-          _styledTextField('Password', Icons.lock, obscure: true),
-          const SizedBox(height: 30),
+          _styledTextField(
+            'Password',
+            Icons.lock,
+            obscure: true,
+            onChanged: (val) => setState(() => _lpassword = val),
+            value: _lpassword,
+          ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Checkbox(
+                    value: _rememberMe,
+                    onChanged: (value) {
+                      setState(() {
+                        _rememberMe = value!;
+                      });
+                    },
+                  ),
+                  const Text('Remember Me'),
+                ],
+              ),
+              TextButton(
+                onPressed: () {},
+                child: const Text(
+                  'Forgot Password?',
+                  style: TextStyle(color: Colors.blue),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 15),
           _gradientButton('LOGIN', _login),
           const SizedBox(height: 16),
-          TextButton(
-            onPressed: () {},
-            child: const Text(
-              'Forgot Password?',
-              style: TextStyle(color: Colors.blue),
-            ),
-          ),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -428,72 +651,73 @@ final TextEditingController _lastNameController = TextEditingController();
   }
 
   // ── Step 1 : Name ───────────────────────────────────────────
-Widget _buildNameStep() {
-  return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 240),
-    child: Container(
-      padding: const EdgeInsets.all(24),
-      decoration: _formDecoration(),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            "Let's Create Your Account!",
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.blue,
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // First Name
-          TextField(
-            controller: _firstNameController,
-            onChanged: (val) => setState(() => _firstName = val),
-            decoration: _inputDecoration('First Name', Icons.person),
-            style: const TextStyle(color: Colors.black),
-          ),
-          const SizedBox(height: 12),
-
-          // Last Name
-          TextField(
-            controller: _lastNameController,
-            onChanged: (val) => setState(() => _lastName = val),
-            decoration: _inputDecoration('Last Name', Icons.person_outline),
-            style: const TextStyle(color: Colors.black),
-          ),
-
-          const SizedBox(height: 30),
-          Row(
+  Widget _buildNameStep() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 240),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: _formDecoration(),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: _gradientButton(
-                  'BACK',
-                  _goToPreviousSignUpStep,
-                  isGrey: true,
+              const Text(
+                "Let's Create Your Account!",
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _gradientButton(
-                  'CONTINUE',
-                  (_firstName != null &&
-                          _lastName != null &&
-                          _isValidName(_firstName!) &&
-                          _isValidName(_lastName!))
-                      ? _goToNextSignUpStep
-                      : null,
-                ),
+              const SizedBox(height: 20),
+
+              // First Name
+              _styledTextField(
+                'First Name',
+                Icons.person,
+                onChanged: (val) => setState(() => _firstName = val),
+                value: _firstName,
+              ),
+              const SizedBox(height: 12),
+
+              // Last Name
+              _styledTextField(
+                'Last Name',
+                Icons.person_outline,
+                onChanged: (val) => setState(() => _lastName = val),
+                value: _lastName,
+              ),
+
+              const SizedBox(height: 30),
+              Row(
+                children: [
+                  Expanded(
+                    child: _gradientButton(
+                      'BACK',
+                      _goToPreviousSignUpStep,
+                      isGrey: true,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _gradientButton(
+                      'CONTINUE',
+                      (_firstName.isNotEmpty &&
+                              _lastName.isNotEmpty &&
+                              _isValidName(_firstName) &&
+                              _isValidName(_lastName))
+                          ? _goToNextSignUpStep
+                          : null,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
-    ),
-  );
-}
-
+    );
+  }
 
   // ── Step 2 : Gender ─────────────────────────────────────────
   Widget _buildGenderStep() {
@@ -502,46 +726,48 @@ Widget _buildNameStep() {
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: _formDecoration(),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "What is your Gender?",
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "What is your Gender?",
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _genderOption(Icons.male, "Male", Colors.blue),
-                _genderOption(Icons.female, "Female", Colors.pink),
-                _genderOption(Icons.transgender, "Other", Colors.grey),
-              ],
-            ),
-            const SizedBox(height: 30),
-            Row(
-              children: [
-                Expanded(
-                  child: _gradientButton(
-                    'BACK',
-                    _goToPreviousSignUpStep,
-                    isGrey: true,
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _genderOption(Icons.male, "Male", Colors.blue),
+                  _genderOption(Icons.female, "Female", Colors.pink),
+                  _genderOption(Icons.transgender, "Other", Colors.grey),
+                ],
+              ),
+              const SizedBox(height: 30),
+              Row(
+                children: [
+                  Expanded(
+                    child: _gradientButton(
+                      'BACK',
+                      _goToPreviousSignUpStep,
+                      isGrey: true,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _gradientButton(
-                    'CONTINUE',
-                    _selectedGender != null ? _goToNextSignUpStep : null,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _gradientButton(
+                      'CONTINUE',
+                      _selectedGender != null ? _goToNextSignUpStep : null,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -554,46 +780,48 @@ Widget _buildNameStep() {
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: _formDecoration(),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "Who are you?",
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "Who are you?",
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _roleOption(Icons.sports_soccer, "Player"),
-                _roleOption(Icons.school, "Coach"),
-                _roleOption(Icons.stadium, "Owner"),
-              ],
-            ),
-            const SizedBox(height: 30),
-            Row(
-              children: [
-                Expanded(
-                  child: _gradientButton(
-                    'BACK',
-                    _goToPreviousSignUpStep,
-                    isGrey: true,
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _roleOption(Icons.sports_soccer, "Player"),
+                  _roleOption(Icons.school, "Coach"),
+                  _roleOption(Icons.stadium, "Owner"),
+                ],
+              ),
+              const SizedBox(height: 30),
+              Row(
+                children: [
+                  Expanded(
+                    child: _gradientButton(
+                      'BACK',
+                      _goToPreviousSignUpStep,
+                      isGrey: true,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _gradientButton(
-                    'CONTINUE',
-                    _selectedRole != null ? _goToNextSignUpStep : null,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _gradientButton(
+                      'CONTINUE',
+                      _selectedRole != null ? _goToNextSignUpStep : null,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -606,188 +834,70 @@ Widget _buildNameStep() {
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: _formDecoration(),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "How old are you and where are you from?",
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            // Birth date picker
- GestureDetector(
-  onTap: _pickDate,
-  child: Column( // Wrap in a Column to include additional text
-    children: [
-      AbsorbPointer(
-        child: TextField(
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: Colors.grey.shade50,
-            hintText: _selectedDate == null
-                ? 'Select your birth date'
-                : '${_selectedDate!.toLocal()}'.split(' ')[0],
-            prefixIcon: const Icon(Icons.cake, color: Colors.blue),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 16,
-              horizontal: 20,
-            ),
-          ),
-          style: const TextStyle(color: Colors.blue),
-        ),
-      ),
-      const SizedBox(height: 8), // Adding some space between TextField and message
-      const Text(
-        'You must be 13 years or older.',
-        textAlign: TextAlign.left, // Aligns the text to the left
-        style: TextStyle(
-          color: Colors.black54,// Change color as desired
-          fontSize: 12, // Adjust font size
-        ),
-      ),
-    ],
-  ),
-),
-            const SizedBox(height: 20),
-            // Location
-            TextField(
-              controller: _locationController,
-              onChanged: (_) => setState(() {}), // ADD THIS LINE
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: Colors.grey.shade50,
-                hintText: 'Where are you from?',
-                prefixIcon: const Icon(Icons.location_on, color: Colors.blue),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  vertical: 16,
-                  horizontal: 20,
-                ),
-              ),
-              style: const TextStyle(color: Colors.black),
-            ),
-
-            const SizedBox(height: 30),
-            Row(
-              children: [
-                Expanded(
-                  child: _gradientButton(
-                    'BACK',
-                    _goToPreviousSignUpStep,
-                    isGrey: true,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _gradientButton(
-                    'CONTINUE',
-                    (_isOldEnough(_selectedDate) && _isLocationValid())
-                        ? _goToNextSignUpStep
-                        : null,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── Step 5 : Credentials ────────────────────────────────────
-  Widget _buildCredentialsStep() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 143),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: _formDecoration(),
         child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                "Finally, your credentials?",
+                "How old are you and where are you from?",
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: Colors.blue,
                 ),
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
-
-              _styledTextField(
-                "Username",
-                Icons.person,
-                controller: _usernameController,
-              ),
-              const SizedBox(height: 12),
-
-                     
-              _styledTextField(
-                "Password",
-                Icons.lock,
-                obscure: true,
-                controller: _passwordController,
-              ),
-              const SizedBox(height: 12),
-              _styledTextField(
-                "Confirm Password",
-                Icons.lock_outline,
-                obscure: true,
-                controller: _confirmPasswordController,
-              ),
-       const SizedBox(height: 12),
-              // Email with send code button
-              Row(
-                children: [
-                  Expanded(
-                    child: _styledTextField(
-                      "Email",
-                      Icons.email,
-                      controller: _emailController,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () {
-                      // TODO: implement send code
-                    },
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 14),
-                      backgroundColor: Colors.blue,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+              // Birth date picker
+              GestureDetector(
+                onTap: _pickDate,
+                child: Column(
+                  children: [
+                    AbsorbPointer(
+                      child: TextField(
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          hintText:
+                              _selectedDate == null
+                                  ? 'Select your birth date'
+                                  : '${_selectedDate!.toLocal()}'.split(' ')[0],
+                          prefixIcon: const Icon(
+                            Icons.cake,
+                            color: Colors.blue,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 16,
+                            horizontal: 20,
+                          ),
+                        ),
+                        style: const TextStyle(color: Colors.blue),
                       ),
                     ),
-                    child: const Text(
-                      "Send Code",
-                      style: TextStyle(color: Colors.white),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'You must be 13 years or older.',
+                      textAlign: TextAlign.left,
+                      style: TextStyle(color: Colors.black54, fontSize: 12),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-
-
-              const SizedBox(height: 12),
-              _styledTextField(
-                "Enter Code",
-                Icons.verified,
-                controller: _codeController,
-              ),
-
               const SizedBox(height: 20),
+              // Location
+              _styledTextField(
+                'Where are you from?',
+                Icons.location_on,
+                onChanged: (val) => setState(() => _location = val),
+                value: _location,
+              ),
+
+              const SizedBox(height: 30),
               Row(
                 children: [
                   Expanded(
@@ -799,13 +909,241 @@ Widget _buildNameStep() {
                   ),
                   const SizedBox(width: 16),
                   Expanded(
-                    child: _gradientButton('FINISH', _submitRegistration),
-
+                    child: _gradientButton(
+                      'CONTINUE',
+                      (_isOldEnough(_selectedDate) && _isLocationValid())
+                          ? _goToNextSignUpStep
+                          : null,
+                    ),
                   ),
                 ],
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  // ── Step 5 : Credentials ────────────────────────────────────
+  Widget _buildCredentialsStep() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 140),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: _formDecoration(),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "Create your credentials",
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              _styledTextField(
+                "Username",
+                Icons.person,
+                onChanged: (val) => setState(() => _username = val),
+                value: _username,
+              ),
+              const SizedBox(height: 12),
+
+              // Phone number field with validation
+              IntlPhoneField(
+                decoration: InputDecoration(
+                  labelText: 'Phone Number',
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 16,
+                    horizontal: 20,
+                  ),
+                  errorText:
+                      _phoneNumber.isEmpty && _phoneNumberTouched
+                          ? 'Please enter a valid phone number'
+                          : null,
+                ),
+                initialCountryCode: 'US',
+                onChanged: (phone) {
+                  setState(() {
+                    _phoneNumber = phone.completeNumber;
+                    _phoneNumberTouched = true;
+                  });
+                },
+                validator: (phone) {
+                  if (phone == null || phone.number.isEmpty) {
+                    return 'Please enter a phone number';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+
+              _styledTextField(
+                "Email",
+                Icons.email,
+                onChanged: (val) => setState(() => _email = val),
+                value: _email,
+              ),
+              const SizedBox(height: 12),
+
+              // Password field with requirements
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _styledTextField(
+                    "Password",
+                    Icons.lock,
+                    obscure: true,
+                    onChanged: (val) => setState(() => _password = val),
+                    value: _password,
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 16, top: 4),
+                    child: Text(
+                      'Minimum 8 characters',
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              _styledTextField(
+                "Confirm Password",
+                Icons.lock_outline,
+                obscure: true,
+                onChanged: (val) => setState(() => _confirmPassword = val),
+                value: _confirmPassword,
+              ),
+              if (_password.isNotEmpty &&
+                  _confirmPassword.isNotEmpty &&
+                  !_passwordsMatch())
+                const Padding(
+                  padding: EdgeInsets.only(left: 16, top: 4),
+                  child: Text(
+                    'Passwords do not match',
+                    style: TextStyle(color: Colors.red, fontSize: 12),
+                  ),
+                ),
+
+              const SizedBox(height: 30),
+              Row(
+                children: [
+                  Expanded(
+                    child: _gradientButton(
+                      'BACK',
+                      _goToPreviousSignUpStep,
+                      isGrey: true,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _gradientButton(
+                      'SEND CODE',
+                      (_username.isNotEmpty &&
+                              _phoneNumber.isNotEmpty &&
+                              _email.isNotEmpty &&
+                              _isEmailValid() &&
+                              _password.isNotEmpty &&
+                              _confirmPassword.isNotEmpty &&
+                              _isPasswordValid() &&
+                              _passwordsMatch())
+                          ? () async {
+                            bool success = await _submitRegistration();
+                            if (success) {
+                              _goToNextSignUpStep();
+                            }
+                          }
+                          : null,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Step 6 : Verification ──────────────────────────────────
+  Widget _buildVerificationStep() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 210),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: _formDecoration(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "Verify Your Email",
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              "We've sent a verification code to your email address. Please enter it below.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.black54, fontSize: 16),
+            ),
+            const SizedBox(height: 30),
+
+            // Code input with send button
+            Row(
+              children: [
+                Expanded(
+                  child: _styledTextField(
+                    'Enter 6-digit code',
+                    Icons.verified,
+                    keyboardType: TextInputType.number,
+                    onChanged: (val) => setState(() => _code = val),
+                    value: _code,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: _sendVerificationCode,
+              child: const Text(
+                "Didn't receive code? Resend",
+                style: TextStyle(color: Colors.blue),
+              ),
+            ),
+            const SizedBox(height: 30),
+            Row(
+              children: [
+                Expanded(
+                  child: _gradientButton(
+                    'FINISH',
+                    (_code.isNotEmpty)
+                        ? () async {
+                          bool success = await _verifyRegistration();
+                          if (success) {
+                            _rLogin();
+                          }
+                        }
+                        : null,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -882,13 +1220,22 @@ Widget _buildNameStep() {
     String hint,
     IconData icon, {
     bool obscure = false,
-    TextEditingController? controller,
+    TextInputType keyboardType = TextInputType.text,
+    required Function(String) onChanged,
+    required String value,
   }) {
     return TextField(
-      controller: controller,
       obscureText: obscure,
+      keyboardType: keyboardType,
+      onChanged: onChanged,
       decoration: _inputDecoration(hint, icon),
       style: const TextStyle(color: Colors.black),
+      controller: TextEditingController.fromValue(
+        TextEditingValue(
+          text: value,
+          selection: TextSelection.collapsed(offset: value.length),
+        ),
+      ),
     );
   }
 
@@ -925,7 +1272,8 @@ Widget _buildNameStep() {
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
-          padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 24),
+          padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 20),
+
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -956,33 +1304,174 @@ Widget _buildNameStep() {
     );
   }
 
-  void _submitRegistration() {
-  final Map<String, dynamic> userData = {
-    "firstName": _firstName?.trim(),
-    "lastName": _lastName?.trim(),
-    "birthDate": _selectedDate?.toIso8601String(),
-    "location": _locationController.text.trim(),
-    "role": _selectedRole,
-    "gender": _selectedGender,
-    "username": _usernameController.text.trim(),
-    "email": _emailController.text.trim(),
-    "password": _passwordController.text,
-  };
+  Future<bool> _submitRegistration() async {
+    final Map<String, dynamic> userData = {
+      "first_name": _firstName.trim(),
+      "last_name": _lastName.trim(),
+      "birthDate": _selectedDate?.toIso8601String(),
+      "location": _location.trim(),
+      "role": _selectedRole,
+      "gender": _selectedGender,
+      "username": _username.trim(),
+      "email": _email.trim(),
+      "phone": _phoneNumber,
+      "password": _password,
+      "password2": _password,
+    };
 
-  print("User Registration Data: \$userData");
+    print("User Registration Data: ${jsonEncode(userData)}");
 
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Registration Complete'),
-      content: Text('JSON:\n${userData.toString()}'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('OK'),
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final response = await OrganizationsServices.signUp(userData);
+
+    // Close loading
+    Navigator.of(context).pop();
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Code was sent to your email for signing up confirmation.',
+          ),
+          duration: Duration(seconds: 5),
+          backgroundColor: Colors.blue,
         ),
-      ],
-    ),
-  );
-}
+      );
+
+      return true;
+    } else {
+      String bodyMessage;
+      try {
+        final decoded = jsonDecode(response.body);
+        bodyMessage =
+            decoded.values
+                .map((value) => value.toString())
+                .join('\n')
+                .replaceAll(RegExp(r'[\[\]]'), '') ??
+            response.body;
+      } catch (_) {
+        bodyMessage = response.body;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(bodyMessage),
+          duration: Duration(seconds: 5),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> _verifyRegistration() async {
+    final Map<String, dynamic> userData = {
+      "email": _email.trim(),
+      "code": _code,
+    };
+
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final response = await OrganizationsServices.verify(userData);
+
+    // Close loading
+    Navigator.of(context).pop();
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Code verified successfully. \nWelcome to OnlySport!'),
+          duration: Duration(seconds: 5),
+          backgroundColor: Colors.blue,
+        ),
+      );
+
+      return true;
+    } else {
+      String bodyMessage;
+      try {
+        final decoded = jsonDecode(response.body);
+        bodyMessage =
+            decoded.values
+                .map((value) => value.toString())
+                .join('\n')
+                .replaceAll(RegExp(r'[\[\]]'), '') ??
+            response.body;
+      } catch (_) {
+        bodyMessage = response.body;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(bodyMessage),
+          duration: Duration(seconds: 5),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return false;
+    }
+  }
+
+  _rLogin() {
+    widget.onLoginSuccess(0);
+  }
+
+  Future<bool> _refresh() async {
+    final String? refreshString = await StorageService.read('refresh_token');
+
+    final Map<String, dynamic> userData = {"refresh": refreshString};
+
+    final response = await OrganizationsServices.refresh(userData);
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final decoded = jsonDecode(response.body);
+      final String accessToken = decoded['access'];
+      await StorageService.write('access_token', accessToken);
+      
+      final String? userDataJson = await StorageService.read('user_data');
+      final Map<String, dynamic> userData = jsonDecode(userDataJson!);
+      final String firstName = userData['first_name'] ?? '';
+      final String lastName = userData['last_name'] ?? '';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Welcome Back $firstName $lastName!'),
+          duration: const Duration(seconds: 5),
+          backgroundColor: Colors.blue,
+        ),
+      );
+
+      widget.onLoginSuccess(0);
+      return true;
+    } else {
+      String bodyMessage;
+      try {
+        final decoded = jsonDecode(response.body);
+        bodyMessage = decoded.values
+            .map((value) => value.toString())
+            .join('\n')
+            .replaceAll(RegExp(r'[\[\]]'), '');
+      } catch (_) {
+        bodyMessage = response.body;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(bodyMessage),
+          duration: Duration(seconds: 5),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return false;
+    }
+  }
 }

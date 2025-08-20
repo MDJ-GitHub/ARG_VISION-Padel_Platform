@@ -11,6 +11,9 @@ from backend_argvision import permissions
 from .models import User
 from .serializers import CustomTokenObtainPairSerializer, RegisterSerializer, UserSerializer
 from django.db.models import Q
+from .serializers import SignUpSerializer, VerifyEmailSerializer
+from django.core.mail import send_mail
+from django.conf import settings
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
@@ -68,4 +71,65 @@ class PlayerSearchView(generics.ListAPIView):
         
         return User.objects.filter(query).distinct()
 
+
+class SignUpView(generics.CreateAPIView):
+    serializer_class = SignUpSerializer
+    permission_classes = [AllowAny]
+
+class VerifyEmailView(generics.CreateAPIView):
+    serializer_class = VerifyEmailSerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        user = serializer.validated_data['user']
+        user.email_verified = True
+        user.verification_code = None
+        user.verification_code_expiry = None
+        user.is_active = True
+        user.save()
+        
+        return Response(
+            {"detail": "Email verified successfully"},
+            status=status.HTTP_200_OK
+        )
+
+class ResendCodeView(generics.CreateAPIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        email = request.data.get('email')
+        if not email:
+            return Response(
+                {"detail": "Email is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            user = User.objects.get(email=email)
+            if user.email_verified:
+                return Response(
+                    {"detail": "Email already verified"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            code = user.generate_verification_code()
+            send_mail(
+                'Your New Verification Code',
+                f'Your new verification code is: {code}',
+                settings.DEFAULT_FROM_EMAIL,
+                [user.email],
+                fail_silently=False,
+            )
+            return Response(
+                {"detail": "New verification code sent"},
+                status=status.HTTP_200_OK
+            )
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "User not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
 

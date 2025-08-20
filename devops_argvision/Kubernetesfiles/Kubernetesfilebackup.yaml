@@ -1,0 +1,141 @@
+# Esprit End-of-Study DevOps Project ARG VISION Kubernetesfile
+
+---
+
+# SQLite Persistent Volume
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: argvision-pv-back
+  labels:
+    app: label-argvision-pv-back
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /mnt/data/argvision-back
+
+---
+
+# SQLite Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: argvision-pvc-back
+  labels:
+    app: label-argvision-pvc-back
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+
+# Backend Deployment (Django with SQLite)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argvision-dep-back
+  labels:
+    app: label-argvision-dep-back
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: label-argvision-dep-back
+  template:
+    metadata:
+      labels:
+        app: label-argvision-dep-back
+    spec:
+      containers:
+      - name: argvision-back
+        image: mdjdocker/esprit-internship-onlysport-arg_vision-back:latest
+        ports:
+        - containerPort: 8000
+          name: cport-8000
+        volumeMounts:
+        - name: argvision-vol-back
+          mountPath: /app/db.sqlite3
+          subPath: db.sqlite3   # persist only the DB file
+        livenessProbe:
+          httpGet:
+            path: /   # adjust if you have a dedicated health endpoint
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 20
+          failureThreshold: 3
+      restartPolicy: Always
+      volumes:
+      - name: argvision-vol-back
+        persistentVolumeClaim:
+          claimName: argvision-pvc-back
+
+---
+
+# Backend Service NodePort
+apiVersion: v1
+kind: Service
+metadata:
+  name: argvision-nser-back
+  labels:
+    app: label-argvision-nser-back
+spec:
+  selector:
+    app: label-argvision-dep-back
+  ports:
+  - port: 8000
+    name: port-8000
+    targetPort: 8000
+    nodePort: 30003
+  type: NodePort
+
+---
+
+# Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argvision-dep-front
+  labels:
+    app: label-argvision-dep-front
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: label-argvision-dep-front
+  template:
+    metadata:
+      labels:
+        app: label-argvision-dep-front
+    spec:
+      containers:
+      - name: argvision-front
+        image: mdjdocker/esprit-internship-onlysport-arg_vision-front:latest
+        ports:
+        - containerPort: 80
+          name: cport-80
+      restartPolicy: Always
+
+---
+
+# Frontend Service NodePort
+apiVersion: v1
+kind: Service
+metadata:
+  name: argvision-nser-front
+  labels:
+    app: label-argvision-nser-front
+spec:
+  selector:
+    app: label-argvision-dep-front
+  ports:
+  - port: 80
+    name: port-80
+    targetPort: 80
+    nodePort: 30004
+  type: NodePort

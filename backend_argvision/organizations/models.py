@@ -110,32 +110,6 @@ class Match(models.Model):
         ordering = ['-date_start']
         verbose_name_plural = 'matches'
 
-class Message(models.Model):
-
-    MESSAGE_TYPES = (
-        ('MESSAGE', 'Message'),
-        ('REPLY', 'Reply'),
-        ('REACT', 'React'),
-    )
-
-    match = models.ForeignKey(Match, on_delete=models.CASCADE, related_name='messages')
-    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    content = models.TextField()
-    timestamp = models.DateTimeField(auto_now_add=True)
-    message_type = models.CharField(max_length=10, choices=MESSAGE_TYPES, default='MESSAGE')
-    replying_to = models.ForeignKey(
-        'self',
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='replies'
-    )
-
-    class Meta:
-        ordering = ['timestamp']
-
-    def __str__(self):
-        return f"{self.sender.username}: {self.content[:20]}..."
     
 
 def team_image_path(instance, filename):
@@ -324,3 +298,65 @@ class Ranking(models.Model):
         super().save(*args, **kwargs)
 
 
+class Discussion(models.Model):
+    DISCUSSION_TYPES = (
+        ('GROUP', 'Group'),
+        ('MATCH', 'Match'),
+        ('TEAM', 'Team'),
+    )
+
+    type = models.CharField(max_length=10, choices=DISCUSSION_TYPES)
+    group = models.ManyToManyField(User, related_name='discussions', blank=True)
+
+    # Nullable references depending on type
+    match = models.ForeignKey(
+        Match, on_delete=models.CASCADE, null=True, blank=True, related_name="discussions"
+    )
+    team = models.ForeignKey(
+        Team, on_delete=models.CASCADE, null=True, blank=True, related_name="discussions"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def clean(self):
+        """Enforce rules based on type"""
+        from django.core.exceptions import ValidationError
+        if self.type == 'GROUP' and (self.match or self.team or not self.group):
+            raise ValidationError("Group discussions cannot have match or team")
+        if self.type == 'MATCH' and (self.team or not self.match or self.group):
+            raise ValidationError("Match discussions must have a match and no team")
+        if self.type == 'TEAM' and (self.match or not self.team or self.group):
+            raise ValidationError("Team discussions must have a team and no match")
+
+    def __str__(self):
+        return f"{self.get_type_display()} Discussion {self.id}"
+
+
+
+class Message(models.Model):
+    MESSAGE_TYPES = (
+        ('MESSAGE', 'Message'),
+        ('REPLY', 'Reply'),
+        ('REACT', 'React'),
+    )
+
+    discussion = models.ForeignKey(
+        Discussion, on_delete=models.CASCADE, related_name='messages'
+    )
+    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    content = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+    message_type = models.CharField(max_length=10, choices=MESSAGE_TYPES, default='MESSAGE')
+    replying_to = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='replies'
+    )
+
+    class Meta:
+        ordering = ['timestamp']
+
+    def __str__(self):
+        return f"{self.sender.username}: {self.content[:20]}..."

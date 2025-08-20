@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 from accounts.models import User
 
-from .models import Game, Match, MatchMembership, Message, Ranking, Team, TeamMembership
+from .models import Discussion, Game, Match, MatchMembership, Message, Ranking, Team, TeamMembership
 from accounts.serializers import UserSerializer
 
 class GameSerializer(serializers.ModelSerializer):
@@ -172,3 +172,11 @@ class RankingSerializer(serializers.ModelSerializer):
                     "Team game must match ranking game"
                 )
         return data
+    
+
+    from rest_framework import serializers
+
+class DiscussionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Discussion
+        fields = '__all__'

@@ -2,13 +2,13 @@
 from django.urls import path
 
 from .views import (
-    BeginMatchView, CompleteMatchView, GameCreateView, GameListView, GameRetrieveUpdateDestroyView,
+    BeginMatchView, CompleteMatchView, GameCreateView, GameListView, GameRetrieveUpdateDestroyView, ListDiscussionsView,
     MatchCreateView, MatchListAllView, MatchRetrieveUpdateDestroyView,
     MatchCompleteView,
     MatchListPublicView,
     MatchArchivesView, GameArchivesView, MessageListView,
     InvitePlayerView, AcceptInviteView,
-    KickPlayerView, BanPlayerView, DenyInviteView, LeaveMatchView,
+    KickPlayerView, BanPlayerView, DenyInviteView, LeaveMatchView, StartDiscussionView,
     TeamCreateView, AcceptTeamInviteView, SelectSideView
     )
 
@@ -44,6 +44,9 @@ urlpatterns = [
     # Team URLs
     path('teams/create/', TeamCreateView.as_view(), name='team-create'),
     path('teams/accept/<int:pk>/', AcceptTeamInviteView.as_view(), name='team-accept'),
+
+    path('discussions/start/', StartDiscussionView.as_view(), name='start-discussion'),
+    path('discussions/list/', ListDiscussionsView.as_view(), name='user-discussions'),
 
 
    # Ranking URLs

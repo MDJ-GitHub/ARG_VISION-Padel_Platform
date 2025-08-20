@@ -7,6 +7,8 @@ from django.forms import ValidationError
 from django.utils import timezone
 from django.core.validators import MinValueValidator
 from phonenumber_field.modelfields import PhoneNumberField
+import random
+import string
 
 class UserManager(BaseUserManager):
     def create_user(self, email=None, phone=None, password=None, **extra_fields):
@@ -40,9 +42,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     
     GENDER_CHOICES = (
-        ('M', 'Male'),
-        ('F', 'Female'),
-        ('P', 'Prefer not to say'),
+        ('Male', 'Male'),
+        ('Female', 'Female'),
+        ('Others', 'Others'),
     )
 
     email = models.EmailField(unique=True, null=True, blank=True)
@@ -51,8 +53,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
     birthdate = models.DateField(null=True, blank=True)
-    gender = models.CharField(max_length=1, choices=GENDER_CHOICES, null=True, blank=True)
+    gender = models.CharField(max_length=6, choices=GENDER_CHOICES, null=True, blank=True)
     picture = models.ImageField(upload_to='profile_pics/', null=True, blank=True)
+    location = models.CharField(max_length=100, null=True, blank=True)
+    bio = models.TextField(null=True, blank=True)
     matches = models.PositiveIntegerField(default=0)
     wins = models.PositiveIntegerField(default=0)
     losses = models.PositiveIntegerField(default=0)
@@ -60,10 +64,13 @@ class User(AbstractBaseUser, PermissionsMixin):
     date_joined = models.DateTimeField(default=timezone.now)
     last_login = models.DateTimeField(null=True, blank=True)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='Player')
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
     archived = models.BooleanField(default=False, help_text="User is archived and cannot log in")
+    email_verified = models.BooleanField(default=False)
+    verification_code = models.CharField(max_length=6, blank=True, null=True)
+    verification_code_expiry = models.DateTimeField(blank=True, null=True)
 
     objects = UserManager()
 
@@ -83,3 +90,11 @@ class User(AbstractBaseUser, PermissionsMixin):
         super().clean()
         if not self.email and not self.phone:
             raise ValidationError('Either email or phone must be provided')
+        
+
+    def generate_verification_code(self):
+        code = ''.join(random.choices(string.digits, k=6))
+        self.verification_code = code
+        self.verification_code_expiry = timezone.now() + timezone.timedelta(minutes=15)
+        self.save()
+        return code

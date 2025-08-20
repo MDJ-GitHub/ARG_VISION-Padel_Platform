@@ -9,8 +9,8 @@ from accounts import models
 from organizations import serializers
 from accounts.models import User
 from notifications.utils import send_notification
-from .models import Game, Match, Message, Ranking, Team, MatchMembership, TeamMembership, User
-from .serializers import GameSerializer, MatchSerializer, MessageSerializer, RankingSerializer, TeamMembershipSerializer, TeamSerializer, MatchMembershipSerializer
+from .models import Discussion, Game, Match, Message, Ranking, Team, MatchMembership, TeamMembership, User
+from .serializers import DiscussionSerializer, GameSerializer, MatchSerializer, MessageSerializer, RankingSerializer, TeamMembershipSerializer, TeamSerializer, MatchMembershipSerializer
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from django.db import transaction
@@ -1046,5 +1046,93 @@ class CompleteMatchView(generics.UpdateAPIView):
             },
             status=status.HTTP_200_OK
         )
-    
-    
+
+
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.contrib.auth import get_user_model
+from organizations.models import Discussion, Match, Team
+from organizations.serializers import DiscussionSerializer
+
+User = get_user_model()
+
+class StartDiscussionView(APIView):
+    """
+    Start a discussion based on receiver(s), team_id, match_id.
+    """
+    def post(self, request):
+        user = request.user
+        receiver_ids = request.data.get('receivers', [])  # List of user IDs
+        team_id = request.data.get('teamid', 0)
+        match_id = request.data.get('matchid', 0)
+
+        # Fetch users for GROUP discussion
+        participants = User.objects.filter(id__in=receiver_ids) if receiver_ids else []
+
+        # If participants exist → create GROUP discussion
+        if participants.exists():
+            discussion = Discussion.objects.create(type='GROUP')
+            discussion.group.add(user, *participants)
+        
+        # If participants empty but match_id provided → MATCH discussion
+        elif int(match_id) != 0:
+            try:
+                match = Match.objects.get(id=match_id)
+            except Match.DoesNotExist:
+                return Response({"error": "Match not found"}, status=status.HTTP_404_NOT_FOUND)
+            discussion = Discussion.objects.create(type='MATCH', match_id=match.id)
+
+        # If participants empty but team_id provided → TEAM discussion
+        elif int(team_id) != 0:
+            try:
+                team = Team.objects.get(id=team_id)
+            except Team.DoesNotExist:
+                return Response({"error": "Team not found"}, status=status.HTTP_404_NOT_FOUND)
+            discussion = Discussion.objects.create(type='TEAM', team_id=team.id)
+
+        else:
+            return Response({"error": "No valid participants, match, or team provided"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = DiscussionSerializer(discussion)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from organizations.models import Discussion, MatchMembership, TeamMembership
+from organizations.serializers import DiscussionSerializer
+
+class ListDiscussionsView(APIView):
+    """
+    Retrieve discussions related to the authenticated user:
+    a) User is in group
+    b) User is part of a MatchMembership for discussion.match
+    c) User is part of a TeamMembership for discussion.team
+    """
+    def get(self, request):
+        user = request.user
+
+        if user.is_anonymous:
+            return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        # a) Discussions where user is in group
+        group_discussions = Discussion.objects.filter(type='GROUP', group=user)
+
+        # b) Discussions linked to a match where user is a member
+        match_ids = MatchMembership.objects.filter(user=user).values_list('match_id', flat=True)
+        match_discussions = Discussion.objects.filter(type='MATCH', match_id__in=match_ids)
+
+        # c) Discussions linked to a team where user is a member
+        team_ids = TeamMembership.objects.filter(user=user).values_list('team_id', flat=True)
+        team_discussions = Discussion.objects.filter(type='TEAM', team_id__in=team_ids)
+
+        # Combine all discussions
+        discussions = group_discussions | match_discussions | team_discussions
+        discussions = discussions.distinct().order_by('-id')  # optional ordering
+
+        serializer = DiscussionSerializer(discussions, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
