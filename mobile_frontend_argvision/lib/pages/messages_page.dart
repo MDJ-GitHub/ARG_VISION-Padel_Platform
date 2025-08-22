@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mobile_frontend_argvision/services/storage_service.dart';
+import 'package:mobile_frontend_argvision/services/organizations_services.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class MessagesPage extends StatefulWidget {
@@ -26,7 +27,6 @@ class _HeaderIcon extends StatelessWidget {
 }
 
 class _MessagesPageState extends State<MessagesPage> {
-  
   String _selectedType = 'All';
   final TextEditingController _searchController = TextEditingController();
 
@@ -34,42 +34,35 @@ class _MessagesPageState extends State<MessagesPage> {
   Map<String, dynamic>? _activeDiscussion;
   final TextEditingController _chatController = TextEditingController();
 
-  final List<Map<String, dynamic>> _discussions = [
-    // Static discussions with random IDs and types, filling missing attributes
-    {
-      'id': 1,
-      'type': 'PLAYER',
-      'name': 'Lionel Messi',
-      'image': 'assets/images/userplaceholder.jpg',
-    },
-    {
-      'id': 2,
-      'type': 'TEAM',
-      'name': 'FC Barcelona',
-      'image': 'assets/images/userplaceholder.jpg',
-    },
-    {
-      'id': 3,
-      'type': 'MATCH',
-      'name': 'Champions League Final',
-      'image': 'assets/images/userplaceholder.jpg',
-    },
-    {
-      'id': 4,
-      'type': 'PLAYER',
-      'name': 'Cristiano Ronaldo',
-      'image': 'assets/images/userplaceholder.jpg',
-    },
-    {
-      'id': 5,
-      'type': 'GROUP',
-      'name': 'Study Group',
-      'image': 'assets/images/userplaceholder.jpg',
-    },
-  ];
+  List<Map<String, dynamic>> _discussions = [];
+  bool _isLoading = true;
 
   final Map<int, List<_ChatMessage>> _conversations = {}; // keyed by discussion id
   final Map<int, WebSocketChannel> _channels = {}; // keyed by discussion id
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDiscussions();
+  }
+
+  Future<void> _loadDiscussions() async {
+    try {
+      final data = await OrganizationsServices.fetchDiscussions();
+      setState(() {
+        _discussions = data.map<Map<String, dynamic>>((d) => {
+          'id': d['id'],
+          'type': d['type'] ?? 'UNKNOWN',
+          'name': d['title'] ?? 'Unnamed',
+          'image': 'assets/images/userplaceholder.jpg', // replace with API image if available
+        }).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error fetching discussions: $e');
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -79,37 +72,33 @@ class _MessagesPageState extends State<MessagesPage> {
     super.dispose();
   }
 
-void _connectToDiscussion(int discussionId) async {
-  if (_channels[discussionId] != null) return;
-  
+  void _connectToDiscussion(int discussionId) async {
+    if (_channels[discussionId] != null) return;
 
-  final token = await StorageService.read('access_token');
-  final channel = WebSocketChannel.connect(
-    Uri.parse('ws://localhost:8000/ws/discussion/$discussionId/chat/?token=$token'),
-  );
+    final token = await StorageService.read('access_token');
+    final channel = WebSocketChannel.connect(
+      Uri.parse('ws://localhost:8000/ws/discussion/$discussionId/chat/?token=$token'),
+    );
 
-channel.stream.listen((data) async {
-  final decoded = jsonDecode(data);
-  if (decoded['type'] == 'chat_message') {
-    final userDataJson = await StorageService.read("user_data");
-    final username = jsonDecode(userDataJson!)['username'];
+    channel.stream.listen((data) async {
+      final decoded = jsonDecode(data);
+      if (decoded['type'] == 'chat_message') {
+        final userDataJson = await StorageService.read("user_data");
+        final username = jsonDecode(userDataJson!)['username'];
 
-    if (decoded['sender'] != username) {
-      setState(() {
-        _conversations[discussionId] ??= [];
-        _conversations[discussionId]!.add(
-          _ChatMessage(text: decoded['message'], isUser: false),
-        );
-      });
-    }
+        if (decoded['sender'] != username) {
+          setState(() {
+            _conversations[discussionId] ??= [];
+            _conversations[discussionId]!.add(
+              _ChatMessage(text: decoded['message'], isUser: false),
+            );
+          });
+        }
+      }
+    });
+
+    _channels[discussionId] = channel;
   }
-});
-
-
-  _channels[discussionId] = channel;
-}
-
-
 
   void _sendMessage(String message) {
     if (_activeDiscussion == null) return;
@@ -138,20 +127,22 @@ channel.stream.listen((data) async {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       body: SafeArea(
-        child: Column(
-          children: [
-            if (!_isChatOpen) ...[
-              const SizedBox(height: 12),
-              _buildTopRow(),
-              const SizedBox(height: 12),
-            ],
-            Expanded(
-              child: _isChatOpen
-                  ? _buildChatArea()
-                  : _buildList(filteredDiscussions),
-            ),
-          ],
-        ),
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                children: [
+                  if (!_isChatOpen) ...[
+                    const SizedBox(height: 12),
+                    _buildTopRow(),
+                    const SizedBox(height: 12),
+                  ],
+                  Expanded(
+                    child: _isChatOpen
+                        ? _buildChatArea()
+                        : _buildList(filteredDiscussions),
+                  ),
+                ],
+              ),
       ),
     );
   }

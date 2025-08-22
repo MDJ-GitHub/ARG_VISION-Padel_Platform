@@ -306,6 +306,7 @@ class Discussion(models.Model):
     )
 
     type = models.CharField(max_length=10, choices=DISCUSSION_TYPES)
+    title = models.CharField(max_length=200, blank=True, null=True)
     group = models.ManyToManyField(User, related_name='discussions', blank=True)
 
     # Nullable references depending on type

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_frontend_argvision/services/globals_service.dart';
 
 class MatchDetailsPage extends StatelessWidget {
-  const MatchDetailsPage({super.key});
+  const MatchDetailsPage({super.key, required int matchId, required this.currentIndex, required this.onTap, });
+  final int currentIndex;
+  final Function(int) onTap;
+
 
   final Map<String, dynamic> matchData = const {
     "title": "Championnat de Football Amateur",
@@ -27,6 +31,7 @@ class MatchDetailsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+     print("➡️ Opened MatchDetailsPage with matchId: $matchid"); 
     return DefaultTabController(
       length: 5,
       child: Scaffold(
@@ -127,25 +132,53 @@ class MatchDetailsPage extends StatelessWidget {
                     const Divider(height: 24, color: Colors.grey),
 
                     // Bottom row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          matchData['teamCost'],
-                          style: const TextStyle(
-                            color: Colors.blue,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          matchData['spotsLeft'],
-                          style: const TextStyle(
-                            color: Colors.green,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
+                   Row(
+  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  crossAxisAlignment: CrossAxisAlignment.center,
+  children: [
+    // Left side: team cost & spots left stacked
+    Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          matchData['teamCost'],
+          style: const TextStyle(
+            color: Colors.blue,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          matchData['spotsLeft'],
+          style: const TextStyle(
+            color: Colors.green,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    ),
+
+    // Middle: Buttons
+    Row(
+      children: [
+        ElevatedButton(
+          onPressed: () {
+           onTap(12);
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+          ),
+
+          child: const Text(
+            "Join the Game!!",
+            style: TextStyle(color: Colors.white),
+            
+          ),
+        ),
+ 
+
+  ]),
+  ],
+)
                   ],
                 ),
               ),
@@ -225,75 +258,102 @@ class MatchDetailsPage extends StatelessWidget {
   }
 
   Widget _buildPlayersTab() {
-    final team1Players = players.where((p) => p['team'] == 1).toList();
-    final team0Players = players.where((p) => p['team'] == 0).toList();
-    final team2Players = players.where((p) => p['team'] == 2).toList();
+  final team1Players = players.where((p) => p['team'] == 1).toList();
+  final team0Players = players.where((p) => p['team'] == 0).toList();
+  final team2Players = players.where((p) => p['team'] == 2).toList();
 
-    return Padding(
-      padding: const EdgeInsets.all(10.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Team 1 (Blue)
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Team 1',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue,
-                    fontSize: 16,
+  return Padding(
+    padding: const EdgeInsets.all(10.0),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Team 1 (Blue)
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Team 1',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: team1Players
+                        .map((player) => _buildPlayerCard(player, Colors.blue))
+                        .toList(),
                   ),
                 ),
-                const SizedBox(height: 12),
-                ...team1Players.map((player) => _buildPlayerCard(player, Colors.blue)),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          // Team 0 (Grey)
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Invited',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey,
-                    fontSize: 16,
+        ),
+        const SizedBox(width: 8),
+
+        // Team 0 (Grey)
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Invited',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: team0Players
+                        .map((player) => _buildPlayerCard(player, Colors.grey))
+                        .toList(),
                   ),
                 ),
-                const SizedBox(height: 12),
-                ...team0Players.map((player) => _buildPlayerCard(player, Colors.grey)),
-              ],
-            ),
+              ),
+            ],
           ),
-          // Team 2 (Red)
-           const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Team 2',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red,
-                    fontSize: 16,
+        ),
+        const SizedBox(width: 8),
+
+        // Team 2 (Red)
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Team 2',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: team2Players
+                        .map((player) => _buildPlayerCard(player, Colors.red))
+                        .toList(),
                   ),
                 ),
-                const SizedBox(height: 12),
-                ...team2Players.map((player) => _buildPlayerCard(player, Colors.red)),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
+
 
 Widget _buildPlayerCard(Map<String, dynamic> player, Color color) {
   return Container(

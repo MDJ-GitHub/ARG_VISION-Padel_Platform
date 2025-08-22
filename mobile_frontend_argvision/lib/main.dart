@@ -9,6 +9,7 @@ import 'package:mobile_frontend_argvision/pages/tournaments_page.dart';
 import 'package:mobile_frontend_argvision/pages/profile_page.dart';
 import 'package:mobile_frontend_argvision/pages/rankings_team_page.dart';
 import 'package:mobile_frontend_argvision/pages/rankings_page.dart';
+import 'package:mobile_frontend_argvision/pages/select_pos_page.dart';
 
 import 'package:mobile_frontend_argvision/services/organizations_services.dart';
 import 'package:mobile_frontend_argvision/widgets/bottom_navbar.dart';
@@ -20,9 +21,7 @@ import 'pages/home_page.dart';
 void main() {
   runApp(
     MultiProvider(
-      providers: [
-        Provider(create: (context) => OrganizationsServices()),
-      ],
+      providers: [Provider(create: (context) => OrganizationsServices())],
       child: const MyApp(),
     ),
   );
@@ -37,7 +36,7 @@ class MyApp extends StatelessWidget {
       title: 'OnlySport',
       theme: ThemeData(
         fontFamily: 'SFProDisplay',
-    textTheme: ThemeData.light().textTheme.apply(
+        textTheme: ThemeData.light().textTheme.apply(
           fontFamily: 'SFProDisplay',
         ),
         colorScheme: ColorScheme.light(
@@ -62,12 +61,14 @@ class MainWrapper extends StatefulWidget {
 }
 
 class MainWrapperState extends State<MainWrapper> {
+  int? _selectedMatchId; // 👈 store the selected match id
   int _currentIndex = 10; // Start with login page (index 10)
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late List<Widget> _pages;
 
   void _onItemTapped(int index) {
-    if (index == 4) { // If profile button is pressed
+    if (index == 4) {
+      // If profile button is pressed
       _scaffoldKey.currentState?.openEndDrawer(); // Open the sidebar
     } else {
       setState(() {
@@ -86,24 +87,19 @@ class MainWrapperState extends State<MainWrapper> {
   Widget build(BuildContext context) {
     // Initialize pages here so they have access to the current state
     _pages = [
-      HomePage(
-        currentIndex: _currentIndex,
-        onTap: _onItemTapped,
-      ),
-      TournamentsPage(
-        currentIndex: _currentIndex,
-        onTap: _onItemTapped,
-      ),
+      HomePage(currentIndex: _currentIndex, onTap: _onItemTapped),
+      TournamentsPage(currentIndex: _currentIndex, onTap: _onItemTapped),
       const AddPage(),
-      const MatchDetailsPage(),
-      const MatchesPage(), 
-      const MatchesPage(), 
+      MatchDetailsPage(matchId: _selectedMatchId ?? 0, currentIndex: _currentIndex, onTap: _onItemTapped), // 👈 pass id or default
+      const MatchesPage(),
+      const MatchesPage(),
       const ProfilePage(),
       const RankingsTeamPage(),
       const RankingsPage(),
       const MessagesPage(), // Profile page at index 6
       LoginPage(onLoginSuccess: _handleLoginSuccess), // Login page at index 10
-            const ExplorePage(),
+      const ExplorePage(),
+      const SelectPosPage()
     ];
 
     // Determine if we're showing the login page
@@ -111,81 +107,100 @@ class MainWrapperState extends State<MainWrapper> {
 
     return Scaffold(
       key: _scaffoldKey,
-      appBar: isLoginPage ? null : PreferredSize(
-        preferredSize: const Size.fromHeight(kToolbarHeight),
-        child: Container(
-          decoration: BoxDecoration(),
-          child: TopAppBar(),
-        ),
-      ),
-      endDrawer: isLoginPage ? null : SideBar(
-        onItemSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        onLogout: () {
-          setState(() {
-            _currentIndex = 10; // Go back to login page
-          });
-          Navigator.pop(context);
-        },
-      ),
+      appBar:
+          isLoginPage
+              ? null
+              : PreferredSize(
+                preferredSize: const Size.fromHeight(kToolbarHeight),
+                child: Container(
+                  decoration: BoxDecoration(),
+                  child: TopAppBar(),
+                ),
+              ),
+      endDrawer:
+          isLoginPage
+              ? null
+              : SideBar(
+                onItemSelected: (index) {
+                  setState(() {
+                    _currentIndex = index;
+                  });
+                },
+                onLogout: () {
+                  setState(() {
+                    _currentIndex = 10; // Go back to login page
+                  });
+                  Navigator.pop(context);
+                },
+              ),
       body: _pages[_currentIndex],
-      bottomNavigationBar: isLoginPage ? null : Container(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.6),
-              spreadRadius: 2,
-              blurRadius: 5,
-              offset: const Offset(0, -3),
-            ),
-          ],
-        ),
-        child: CustomBottomNavBar(
-          currentIndex: _currentIndex,
-          onTap: _onItemTapped,
-        ),
-      ),
-      floatingActionButton: isLoginPage ? null : Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: Colors.white.withOpacity(1),
-            width: 3,
-          ),
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [
-                Color(0xFF03558F),
-                Color.fromARGB(255, 45, 148, 237),
-              ],
-            ),
-          ),
-          child: FloatingActionButton(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            shape: const CircleBorder(),
-            onPressed: () {
-              setState(() {
-                _currentIndex = 2; // Add page index
-              });
-            },
-            child: Image.asset(
-              'assets/images/icon_add.png',
-              width: 32,
-              height: 32,
-            ),
-          ),
-        ),
-      ),
+      bottomNavigationBar:
+          isLoginPage
+              ? null
+              : Container(
+                decoration: BoxDecoration(
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.6),
+                      spreadRadius: 2,
+                      blurRadius: 5,
+                      offset: const Offset(0, -3),
+                    ),
+                  ],
+                ),
+                child: CustomBottomNavBar(
+                  currentIndex: _currentIndex,
+                  onTap: _onItemTapped,
+                ),
+              ),
+      floatingActionButton:
+          isLoginPage
+              ? null
+              : Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withOpacity(1),
+                    width: 3,
+                  ),
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        Color(0xFF03558F),
+                        Color.fromARGB(255, 45, 148, 237),
+                      ],
+                    ),
+                  ),
+                  child: FloatingActionButton(
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                    shape: const CircleBorder(),
+                    onPressed: () {
+                      setState(() {
+                        _currentIndex = 2; // Add page index
+                      });
+                    },
+                    child: Image.asset(
+                      'assets/images/icon_add.png',
+                      width: 32,
+                      height: 32,
+                    ),
+                  ),
+                ),
+              ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
+  }
+
+  void openMatchDetails(int matchId) {
+    setState(() {
+      _selectedMatchId = matchId;
+      _currentIndex = 3; // 👈 index of MatchDetailsPage in _pages
+    });
   }
 }

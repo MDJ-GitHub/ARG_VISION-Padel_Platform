@@ -1,6 +1,7 @@
 // Imports
 import 'package:flutter/material.dart';
 import 'package:mobile_frontend_argvision/services/organizations_services.dart';
+import 'package:mobile_frontend_argvision/services/globals_service.dart';
 
 // HomePage Widget
 class HomePage extends StatefulWidget {
@@ -20,22 +21,35 @@ class _HomePageState extends State<HomePage> {
   bool _isLoading = false;
 
   final List<Map<String, dynamic>> sports = [
-    {'name': 'Soccer', 'icon': Icons.sports_soccer, 'value': 'soccer'},
+    {'id': 1, 'name': 'Soccer', 'icon': Icons.sports_soccer, 'value': 'soccer'},
     {
+      'id': 2,
       'name': 'Basketball',
       'icon': Icons.sports_basketball,
       'value': 'basketball',
     },
-    {'name': 'Football', 'icon': Icons.sports_football, 'value': 'football'},
-    {'name': 'Tennis', 'icon': Icons.sports_tennis, 'value': 'tennis'},
-    {'name': 'Baseball', 'icon': Icons.sports_baseball, 'value': 'baseball'},
     {
+      'id': 3,
+      'name': 'Football',
+      'icon': Icons.sports_football,
+      'value': 'football',
+    },
+    {'id': 4, 'name': 'Tennis', 'icon': Icons.sports_tennis, 'value': 'tennis'},
+    {
+      'id': 5,
+      'name': 'Baseball',
+      'icon': Icons.sports_baseball,
+      'value': 'baseball',
+    },
+    {
+      'id': 6,
       'name': 'Volleyball',
       'icon': Icons.sports_volleyball,
       'value': 'volleyball',
     },
-    {'name': 'Golf', 'icon': Icons.sports_golf, 'value': 'golf'},
+    {'id': 7, 'name': 'Golf', 'icon': Icons.sports_golf, 'value': 'golf'},
     {
+      'id': 8,
       'name': 'Martial Arts',
       'icon': Icons.sports_martial_arts,
       'value': 'martial_arts',
@@ -44,6 +58,7 @@ class _HomePageState extends State<HomePage> {
 
   final List<Map<String, dynamic>> coaches = [
     {
+      'id': 1,
       'image':
           'https://th.bing.com/th/id/OIP.G7cnU7VEhC2c_u5bFyoekQHaE8?rs=1&pid=ImgDetMain',
       'name': 'Ahmed Ben Ali',
@@ -53,6 +68,7 @@ class _HomePageState extends State<HomePage> {
       'reviews': 127,
     },
     {
+      'id': 2,
       'image':
           'https://th.bing.com/th/id/OIP.G7cnU7VEhC2c_u5bFyoekQHaE8?rs=1&pid=ImgDetMain',
       'name': 'Ahmed Ben Ali',
@@ -65,6 +81,7 @@ class _HomePageState extends State<HomePage> {
 
   final List<Map<String, dynamic>> matches = [
     {
+      'id': 1,
       'image':
           'https://th.bing.com/th/id/OIP.G7cnU7VEhC2c_u5bFyoekQHaE8?rs=1&pid=ImgDetMain',
       'name': 'Summer Tournament',
@@ -80,6 +97,7 @@ class _HomePageState extends State<HomePage> {
       'cost': 40,
     },
     {
+      'id': 2,
       'image':
           'https://th.bing.com/th/id/OIP.Ocv__uJO2g1ow_lzdecvowHaE8?rs=1&pid=ImgDetMain',
       'name': 'Winter Singles',
@@ -98,6 +116,7 @@ class _HomePageState extends State<HomePage> {
 
   final List<Map<String, dynamic>> tournaments = [
     {
+      'id': 1,
       'image':
           'https://thumbs.dreamstime.com/b/empty-soccer-stadium-fresh-green-grass-blue-sky-football-terrain-empty-soccer-stadium-fresh-green-grass-299806360.jpg',
       'name': 'Annual Championship',
@@ -125,6 +144,7 @@ class _HomePageState extends State<HomePage> {
       final transformed =
           apiMatches.map((match) {
             return {
+              'id': match['id'] ?? 0,
               'image':
                   match['picture'] ?? 'assets/images/placeholderpicture.webp',
               'name': match['name'] ?? 'Unnamed Match',
@@ -258,7 +278,15 @@ class _HomePageState extends State<HomePage> {
                               childAspectRatio:
                                   1.5, // Optional: Adjust to match image design
                             ),
-                        itemBuilder: (ctx, i) => _buildCardItem(tournaments[i]),
+                        itemBuilder:
+                            (ctx, i) => GestureDetector(
+                              onTap:
+                                  () => (
+                                    matchid = 3,
+                                    widget.onTap(3),
+                                  ), // ✅ Navigate to index 3
+                              child: _buildCardItem(tournaments[i]),
+                            ),
                       ),
                     ],
                   ),

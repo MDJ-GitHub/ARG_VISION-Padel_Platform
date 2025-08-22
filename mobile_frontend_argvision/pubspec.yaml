@@ -38,6 +38,8 @@ dependencies:
   motion_toast: ^2.6.4
   flutter_secure_storage: ^9.0.0
   web_socket_channel: ^3.0.1
+  image_picker: ^1.0.4
+  country_picker: ^2.0.18 
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -77,6 +79,7 @@ flutter:
     - assets/images/icon_shield.png
     - assets/images/icon_calendar.png
     - assets/images/icon_chat.png
+    - assets/images/selectterrain.png
 
 
   # The following line ensures that the Material Icons font is

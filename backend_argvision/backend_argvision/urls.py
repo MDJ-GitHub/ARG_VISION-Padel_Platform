@@ -1,24 +1,24 @@
-"""
-URL configuration for backend_argvision project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework_simplejwt.views import TokenRefreshView
-from accounts.views import CustomTokenObtainPairView, PlayerSearchView, RegisterView, ResendCodeView, SignUpView, UserProfileView, VerifyEmailView
-from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from accounts.views import (
+    BasicUserListView,
+    CustomTokenObtainPairView,
+    ForgotPasswordChangeView,
+    ForgotPasswordCodeView,
+    ImageUploadView,
+    PlayerSearchView,
+    PublicUserListView,
+    RegisterView,
+    ResendCodeView,
+    ResendVerificationCodeView,
+    SignUpView,
+    UserProfileView,
+    VerifyEmailView
+)
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView # type: ignore
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -31,22 +31,32 @@ urlpatterns = [
         path('signup/', SignUpView.as_view(), name='signup'),
         path('verify/', VerifyEmailView.as_view(), name='verify'),
         path('resend/', ResendCodeView.as_view(), name='resend'),
+        path('forgot/code/', ForgotPasswordCodeView.as_view(), name='forgot_password_code'),
+        path('forgot/change/', ForgotPasswordChangeView.as_view(), name='forgot_password_change'),
+        path('refreshVerify/', ResendVerificationCodeView.as_view(), name='resend-verification-code'),
+
     ])),
-    
-    # User profile
+
     path('api/user/', UserProfileView.as_view(), name='user_profile'),
     path('api/players/search/', PlayerSearchView.as_view(), name='player-search'),
 
-    # Zones app
+
+    path("api/users/public/", PublicUserListView.as_view(), name="public-user-list"),
+    path("api/users/basic/", BasicUserListView.as_view(), name="basic-user-list"),
+
     path('api/zones/', include('zones.urls')),
-
-    # Organizations app
     path('api/organizations/', include('organizations.urls')),
-
-    # Events app
     path('api/events/', include('events.urls')),
 
-    # Spectacular API schema and docs
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+
+    path('upload/', ImageUploadView.as_view(), name='upload'),
+
+
+
 ]
+
+# ✅ Serve media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

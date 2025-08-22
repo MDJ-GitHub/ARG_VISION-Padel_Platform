@@ -9,11 +9,14 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from backend_argvision import permissions
 from .models import User
-from .serializers import CustomTokenObtainPairSerializer, RegisterSerializer, UserSerializer
+from .serializers import BasicUserSerializer, CustomTokenObtainPairSerializer, ForgotPasswordChangeSerializer, ForgotPasswordCodeSerializer, PublicUserSerializer, RegisterSerializer, ResendVerificationCodeSerializer, UserSearchMixin, UserSerializer
 from django.db.models import Q
 from .serializers import SignUpSerializer, VerifyEmailSerializer
 from django.core.mail import send_mail
 from django.conf import settings
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
@@ -75,6 +78,7 @@ class PlayerSearchView(generics.ListAPIView):
 class SignUpView(generics.CreateAPIView):
     serializer_class = SignUpSerializer
     permission_classes = [AllowAny]
+    parser_classes = (MultiPartParser, FormParser)  # ✅ this allows images
 
 class VerifyEmailView(generics.CreateAPIView):
     serializer_class = VerifyEmailSerializer
@@ -133,3 +137,64 @@ class ResendCodeView(generics.CreateAPIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
+class ImageUploadView(APIView):
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request, *args, **kwargs):
+        file = request.FILES['file']
+        # Save the file to a model, or FileSystemStorage
+        return Response({"message": "Image uploaded successfully", "filename": file.name})
+    
+
+class ForgotPasswordCodeView(generics.CreateAPIView):
+    serializer_class = ForgotPasswordCodeSerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(
+            {"detail": "Password reset code sent to email."},
+            status=status.HTTP_200_OK
+        )
+
+
+# Reset password with code
+class ForgotPasswordChangeView(generics.CreateAPIView):
+    serializer_class = ForgotPasswordChangeSerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(
+            {"detail": "Password has been reset successfully."},
+            status=status.HTTP_200_OK
+        )
+    
+
+class ResendVerificationCodeView(generics.GenericAPIView):
+    serializer_class = ResendVerificationCodeSerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({"detail": "Verification code resent successfully."}, status=status.HTTP_200_OK)
+    
+
+
+
+
+# Full details (without sensitive info)
+class PublicUserListView(UserSearchMixin, generics.ListAPIView):
+    serializer_class = PublicUserSerializer
+    permission_classes = [IsAuthenticated]
+
+# Minimal details
+class BasicUserListView(UserSearchMixin, generics.ListAPIView):
+    serializer_class = BasicUserSerializer
+    permission_classes = [IsAuthenticated]

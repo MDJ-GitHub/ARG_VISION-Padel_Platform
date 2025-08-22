@@ -47,19 +47,39 @@ class SideBar extends StatelessWidget {
                 child: Column(
                   children: [
                     const SizedBox(height: 40), // top padding for buttons
-
                     // Tappable Profile
                     GestureDetector(
                       onTap: () {
                         Navigator.pop(context);
                         onItemSelected(6);
                       },
-                      child: CircleAvatar(
-                        radius: 45,
-                        backgroundColor: Colors.blue,
-                        child: const CircleAvatar(
-                          radius: 42,
-                          backgroundImage: AssetImage('assets/images/placeholderpicture.webp'),
+
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.pop(context);
+                          onItemSelected(6); // Navigate to profile
+                        },
+                        child: FutureBuilder<String?>(
+                          future: _getUserImageUrl(),
+                          builder: (context, snapshot) {
+                            final String? imageUrl = snapshot.data;
+                            return CircleAvatar(
+                              radius: 45,
+                              backgroundColor: Colors.blue,
+                              child: CircleAvatar(
+                                radius: 42,
+                                backgroundImage:
+                                    imageUrl != null && imageUrl.isNotEmpty
+                                        ? NetworkImage(
+                                          imageUrl,
+                                        ) // show image from Django
+                                        : const AssetImage(
+                                              'assets/images/placeholderpicture.webp',
+                                            )
+                                            as ImageProvider, // fallback
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -68,7 +88,8 @@ class SideBar extends StatelessWidget {
                     FutureBuilder(
                       future: _getUserName(),
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
                           return const CircularProgressIndicator();
                         } else if (snapshot.hasError) {
                           return const Text(
@@ -89,8 +110,9 @@ class SideBar extends StatelessWidget {
                         }
                       },
                     ),
-                    const SizedBox(height: 30), // spacing between profile and menu
-
+                    const SizedBox(
+                      height: 30,
+                    ), // spacing between profile and menu
                     // Menu items
                     _buildIconMenu(
                       icon: Icons.sports_esports,
@@ -171,6 +193,24 @@ class SideBar extends StatelessWidget {
     );
   }
 
+  Future<String?> _getUserImageUrl() async {
+  try {
+    final String? userDataJson = await StorageService.read('user_data');
+    if (userDataJson != null) {
+      final Map<String, dynamic> userData = jsonDecode(userDataJson);
+      final String? imagePath = userData['image']; // the path stored from Django
+      if (imagePath != null && imagePath.isNotEmpty) {
+        // Assuming Django serves media at 127.0.0.1:8000/media/...
+        return 'http://127.0.0.1:8000$imagePath';
+      }
+    }
+  } catch (e) {
+    // ignore errors and fallback to placeholder
+  }
+  return null;
+}
+
+
   Future<String> _getUserName() async {
     try {
       final String? userDataJson = await StorageService.read('user_data');
@@ -194,14 +234,14 @@ class SideBar extends StatelessWidget {
       await StorageService.delete('rememberMe');
       await StorageService.delete('user_data');
 
-            ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('See you soon!'),
           duration: const Duration(seconds: 5),
           backgroundColor: Colors.blue,
         ),
       );
-      
+
       // Navigate to index 10
       if (context.mounted) {
         Navigator.pop(context); // Close the sidebar
@@ -209,9 +249,9 @@ class SideBar extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error during logout')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Error during logout')));
       }
     }
   }
@@ -228,10 +268,7 @@ class SideBar extends StatelessWidget {
         backgroundColor: Colors.blue,
         child: Icon(icon, color: Colors.white, size: 18),
       ),
-      title: Text(
-        label,
-        style: const TextStyle(fontSize: 15),
-      ),
+      title: Text(label, style: const TextStyle(fontSize: 15)),
       onTap: onTap,
     );
   }
@@ -249,10 +286,7 @@ class SideBar extends StatelessWidget {
         backgroundColor: color,
         child: Icon(icon, color: Colors.white, size: 18),
       ),
-      title: Text(
-        label,
-        style: const TextStyle(fontSize: 15),
-      ),
+      title: Text(label, style: const TextStyle(fontSize: 15)),
       onTap: onTap,
     );
   }

@@ -1,16 +1,56 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:mobile_frontend_argvision/services/storage_service.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
   @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  Map<String, dynamic>? userData;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final String? userDataJson = await StorageService.read('user_data');
+    if (userDataJson != null) {
+      final decoded = json.decode(userDataJson) as Map<String, dynamic>;
+      print(decoded);
+      setState(() {
+        userData = decoded;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (userData == null) {
+      // Show loading spinner while fetching user data
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    // Extract data safely with fallback values
+    final String fullName = "${userData?['first_name'] ?? ''} ${userData?['last_name'] ?? ''}";
+    final String email = userData?['email'] ?? 'N/A';
+    final String phone = userData?['phone'] ?? 'N/A';
+    final String profession = userData?['role'] ?? 'N/A';
+    final String location = userData?['location'] ?? 'Unknown';
+    final String bio = userData?['bio'] ?? 'N/A';
+    final double rating = (userData?['rating'] ?? 0).toDouble();
+
     return DefaultTabController(
       length: 3,
       child: Scaffold(
         body: Column(
           children: [
-            SizedBox(height: 250, child: _buildProfileSection()),
+            SizedBox(height: 250, child: _buildProfileSection(fullName, rating, location)),
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -39,12 +79,12 @@ class ProfilePage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            const Expanded(
+            Expanded(
               child: TabBarView(
                 children: [
-                  _ProfilTab(),
-                  _SportsTab(),
-                  _AvisTab(),
+                  _ProfilTab(email: email, phone: phone, profession: profession, bio: bio),
+                  const _SportsTab(),
+                  const _AvisTab(),
                 ],
               ),
             ),
@@ -54,7 +94,7 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileSection() {
+  Widget _buildProfileSection(String fullName, double rating, String location) {
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -68,102 +108,81 @@ class ProfilePage extends StatelessWidget {
               end: Alignment.centerRight,
             ),
           ),
-          child: Stack(
-            children: [
-              Align(
-                alignment: Alignment.topCenter,
-                child: Container(
-                  height: 8,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withOpacity(0.25),
-                        Colors.transparent,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'My Profile',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 36,
+                          backgroundColor: Colors.white24,
+                          child: const Icon(Icons.person,
+                              size: 40, color: Colors.white),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.blue,
+                            ),
+                            child: const Icon(Icons.camera_alt,
+                                size: 16, color: Colors.white),
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'My Profile',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Stack(
-                          children: [
-                            CircleAvatar(
-                              radius: 36,
-                              backgroundColor: Colors.white24,
-                              child: const Icon(Icons.person,
-                                  size: 40, color: Colors.white),
-                            ),
-                            Positioned(
-                              bottom: 0,
-                              right: 0,
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.blue,
-                                ),
-                                child: const Icon(Icons.camera_alt,
-                                    size: 16, color: Colors.white),
-                              ),
-                            ),
-                          ],
+                        Text(
+                          fullName,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold),
                         ),
-                        const SizedBox(width: 16),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        const SizedBox(height: 4),
+                        Row(
                           children: [
-                            const Text(
-                              'Ahmed Ben Ali',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: const [
-                                Icon(Icons.star,
-                                    color: Colors.white, size: 18),
-                                SizedBox(width: 4),
-                                Text('4.9',
-                                    style: TextStyle(color: Colors.white)),
-                                SizedBox(width: 12),
-                                Icon(Icons.location_on_outlined,
-                                    color: Colors.white, size: 18),
-                                SizedBox(width: 4),
-                                Text('Tunis, Tunisie',
-                                    style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w100)),
-                              ],
-                            ),
+                            const Icon(Icons.star, color: Colors.white, size: 18),
+                            const SizedBox(width: 4),
+                            Text(rating.toString(),
+                                style: const TextStyle(color: Colors.white)),
+                            const SizedBox(width: 12),
+                            const Icon(Icons.location_on_outlined,
+                                color: Colors.white, size: 18),
+                            const SizedBox(width: 4),
+                            Text(location,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w100)),
                           ],
                         ),
                       ],
                     ),
                   ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
+        // The stats box can also be dynamic if needed
         Positioned(
           bottom: 26,
           left: 16,
@@ -188,18 +207,18 @@ class ProfilePage extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: const [
                 _StatItem(
-                    number: '47', label: 'Matches \n Joués', color: Colors.blue),
+                    number: '47', label: 'Matches \n Played', color: Colors.blue),
                 _StatItem(
                     number: '23',
-                    label: 'Matches \n Créés',
+                    label: 'Matches \n Created',
                     color: Colors.purple),
                 _StatItem(
                     number: '29',
-                    label: 'Matches \n Gagnés',
+                    label: 'Matches \n Won',
                     color: Colors.green),
                 _StatItem(
                     number: '2',
-                    label: 'Tournois \n Gagnés',
+                    label: 'Tournois \n Won',
                     color: Colors.orange),
               ],
             ),
@@ -210,8 +229,19 @@ class ProfilePage extends StatelessWidget {
   }
 }
 
+// Modify _ProfilTab to accept dynamic data
 class _ProfilTab extends StatelessWidget {
-  const _ProfilTab();
+  final String email;
+  final String phone;
+  final String profession;
+  final String bio;
+
+  const _ProfilTab({
+    required this.email,
+    required this.phone,
+    required this.profession,
+    required this.bio,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -220,23 +250,21 @@ class _ProfilTab extends StatelessWidget {
       children: [
         _InfoCard(
           title: 'Informations personnelles',
-          children: const [
-            _InfoRow(label: 'Email', value: 'Noamen.benmakhlouf@gmail.com'),
-            _InfoRow(label: 'Téléphone', value: '+216 25 364 754'),
-            _InfoRow(label: 'Profession', value: 'Docteur'),
+          children: [
+            _InfoRow(label: 'Email', value: email),
+            _InfoRow(label: 'Phone', value: phone),
+            _InfoRow(label: 'Profession', value: profession),
           ],
         ),
         const SizedBox(height: 16),
         _InfoCard(
-          title: 'Á propos',
-          children: const [
+          title: 'About me',
+          children: [
             Padding(
-              padding: EdgeInsets.only(top: 4.0),
+              padding: const EdgeInsets.only(top: 4.0),
               child: Text(
-                "Entraîneur de football certifié avec plus de 10 ans d'expérience. "
-                "Spécialisé dans le développement des jeunes talents et l'entraînement technique. "
-                "Passionné par tous les sports et toujours prêt à partager mes connaissances.",
-                style: TextStyle(fontSize: 14, color: Colors.black87),
+              bio,
+              style: const TextStyle(fontSize: 14, color: Colors.black87),
               ),
             ),
           ],
@@ -245,6 +273,7 @@ class _ProfilTab extends StatelessWidget {
     );
   }
 }
+
 
 class _SportsTab extends StatelessWidget {
   const _SportsTab();
